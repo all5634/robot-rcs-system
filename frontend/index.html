@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>RCS 机器人管理系统</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;600;700&display=swap');
+    :root {
+      --bg:#0a0c0f; --bg2:#111418; --bg3:#181c22;
+      --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.13);
+      --text:#e8edf3; --text2:#7a8592; --text3:#4a5260;
+      --accent:#3b82f6; --accent2:#1d4ed8;
+      --green:#22c55e; --yellow:#eab308; --red:#ef4444;
+    }
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-height:100vh;}
+    .topbar{display:flex;align-items:center;justify-content:space-between;padding:18px 32px;border-bottom:1px solid var(--border);position:sticky;top:0;background:rgba(10,12,15,0.94);backdrop-filter:blur(12px);z-index:100;}
+    .topbar-left{display:flex;align-items:center;gap:12px;}
+    .logo{width:30px;height:30px;border-radius:8px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:white;}
+    .topbar h1{font-size:16px;font-weight:700;letter-spacing:0.02em;}
+    .topbar-right{display:flex;align-items:center;gap:14px;}
+    .sys-status{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);font-family:'JetBrains Mono',monospace;}
+    .status-dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 2s infinite;}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+    .clock{font-size:12px;color:var(--text3);font-family:'JetBrains Mono',monospace;}
+    .page{padding:30px 32px;}
+    .page-header{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:26px;}
+    .page-title{font-size:24px;font-weight:700;}
+    .page-subtitle{font-size:13px;color:var(--text2);margin-top:3px;}
+    .btn-add{display:flex;align-items:center;gap:8px;padding:10px 20px;background:var(--accent);color:white;border:none;border-radius:10px;font-size:14px;font-weight:600;font-family:'Syne',sans-serif;cursor:pointer;transition:background 0.15s,transform 0.1s;}
+    .btn-add:hover{background:var(--accent2);}
+    .btn-add:active{transform:scale(0.97);}
+    .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:26px;}
+    .kpi{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px 20px;}
+    .kpi-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;}
+    .kpi-value{font-size:26px;font-weight:700;font-family:'JetBrains Mono',monospace;}
+    .kpi-value.green{color:var(--green);}.kpi-value.yellow{color:var(--yellow);}.kpi-value.red{color:var(--red);}
+    .robot-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:14px;}
+    .robot-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:20px;cursor:pointer;transition:border-color 0.2s,transform 0.15s;position:relative;overflow:hidden;}
+    .robot-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--accent);opacity:0;transition:opacity 0.2s;}
+    .robot-card:hover{border-color:var(--border2);transform:translateY(-2px);}
+    .robot-card:hover::before{opacity:1;}
+    .card-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;}
+    .card-id{font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;margin-bottom:3px;}
+    .card-name{font-size:15px;font-weight:700;}
+    .card-model{font-size:12px;color:var(--text2);margin-top:2px;}
+    .card-right{display:flex;flex-direction:column;align-items:flex-end;gap:6px;}
+    .status-badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;white-space:nowrap;}
+    .badge-dot{width:5px;height:5px;border-radius:50%;}
+    .s-running{background:rgba(34,197,94,0.12);color:var(--green);}
+    .s-running .badge-dot{background:var(--green);animation:pulse 1.5s infinite;}
+    .s-idle{background:rgba(122,133,146,0.12);color:var(--text2);}
+    .s-idle .badge-dot{background:var(--text2);}
+    .s-charging{background:rgba(234,179,8,0.12);color:var(--yellow);}
+    .s-charging .badge-dot{background:var(--yellow);}
+    .s-error{background:rgba(239,68,68,0.12);color:var(--red);}
+    .s-error .badge-dot{background:var(--red);animation:pulse 1s infinite;}
+    .s-offline{background:rgba(74,82,96,0.2);color:var(--text3);}
+    .s-offline .badge-dot{background:var(--text3);}
+    .btn-delete{width:26px;height:26px;border-radius:6px;background:transparent;border:1px solid var(--border);color:var(--text3);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;transition:all 0.15s;}
+    .btn-delete:hover{background:rgba(239,68,68,0.12);border-color:var(--red);color:var(--red);}
+    .card-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+    .card-stat{background:var(--bg3);border-radius:8px;padding:10px 12px;}
+    .cs-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;}
+    .cs-value{font-size:17px;font-weight:700;font-family:'JetBrains Mono',monospace;margin-top:3px;}
+    .batt-bar-wrap{height:3px;background:var(--bg);border-radius:2px;margin-top:5px;}
+    .batt-bar{height:100%;border-radius:2px;transition:width 0.3s;}
+    .card-footer{margin-top:12px;padding-top:10px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+    .card-task{font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;}
+    .card-hb{font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;}
+    .empty{grid-column:1/-1;text-align:center;padding:80px 0;color:var(--text3);font-size:14px;}
+    .empty-icon{font-size:36px;margin-bottom:10px;}
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);z-index:200;display:none;align-items:center;justify-content:center;}
+    .modal-overlay.open{display:flex;}
+    .modal{background:var(--bg2);border:1px solid var(--border2);border-radius:16px;padding:28px;width:400px;animation:modalIn 0.17s ease;}
+    @keyframes modalIn{from{opacity:0;transform:scale(0.95)}to{opacity:1;transform:scale(1)}}
+    .modal-title{font-size:17px;font-weight:700;margin-bottom:18px;}
+    .form-group{display:flex;flex-direction:column;gap:5px;margin-bottom:12px;}
+    .form-label{font-size:12px;color:var(--text2);}
+    .form-input{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:9px 13px;border-radius:8px;font-size:13px;font-family:'Syne',sans-serif;transition:border-color 0.15s;}
+    .form-input:focus{outline:none;border-color:var(--accent);}
+    .modal-actions{display:flex;gap:10px;margin-top:18px;}
+    .btn-confirm{flex:1;padding:10px;background:var(--accent);color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;font-family:'Syne',sans-serif;cursor:pointer;}
+    .btn-confirm:hover{background:var(--accent2);}
+    .btn-cancel{flex:1;padding:10px;background:var(--bg3);color:var(--text2);border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;font-family:'Syne',sans-serif;cursor:pointer;}
+    .btn-del{flex:1;padding:10px;background:rgba(239,68,68,0.12);color:var(--red);border:1px solid rgba(239,68,68,0.25);border-radius:8px;font-size:13px;font-weight:600;font-family:'Syne',sans-serif;cursor:pointer;}
+    .confirm-desc{font-size:13px;color:var(--text2);margin-bottom:18px;line-height:1.6;}
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="logo">R</div>
+    <h1>RCS 机器人管理系统</h1>
+  </div>
+  <div class="topbar-right">
+    <div class="sys-status"><div class="status-dot"></div>系统正常</div>
+    <div class="clock" id="clock">--</div>
+  </div>
+</div>
+
+<div class="page">
+  <div class="page-header">
+    <div>
+      <div class="page-title">机器人列表</div>
+      <div class="page-subtitle">管理和监控所有在线设备</div>
+    </div>
+    <button class="btn-add" onclick="openAddModal()">+ 注册机器人</button>
+  </div>
+
+  <div class="kpi-row">
+    <div class="kpi"><div class="kpi-label">设备总数</div><div class="kpi-value" id="kTotal">0</div></div>
+    <div class="kpi"><div class="kpi-label">在线</div><div class="kpi-value green" id="kOnline">0</div></div>
+    <div class="kpi"><div class="kpi-label">运行中</div><div class="kpi-value yellow" id="kRunning">0</div></div>
+    <div class="kpi"><div class="kpi-label">异常 / 离线</div><div class="kpi-value red" id="kFault">0</div></div>
+  </div>
+
+  <div class="robot-grid" id="robotGrid">
+    <div class="empty"><div class="empty-icon">🤖</div>暂无设备，点击右上角注册机器人</div>
+  </div>
+</div>
+
+<!-- 注册弹窗 -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal">
+    <div class="modal-title">注册新机器人</div>
+    <div class="form-group">
+      <label class="form-label">机器人编号 robotCode *</label>
+      <input class="form-input" id="fCode" placeholder="如 RBT-001">
+    </div>
+    <div class="form-group">
+      <label class="form-label">型号 model *</label>
+      <input class="form-input" id="fModel" placeholder="如 MEC-EX">
+    </div>
+    <div class="form-group">
+      <label class="form-label">能力 capabilities *</label>
+      <input class="form-input" id="fCaps" placeholder="如 move,lift,scan">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeAddModal()">取消</button>
+      <button class="btn-confirm" onclick="submitAdd()">注册</button>
+    </div>
+  </div>
+</div>
+
+<!-- 删除确认弹窗 -->
+<div class="modal-overlay" id="delModal">
+  <div class="modal">
+    <div class="modal-title">确认删除</div>
+    <div class="confirm-desc" id="delDesc">确定要删除这台机器人吗？</div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeDelModal()">取消</button>
+      <button class="btn-del" onclick="confirmDelete()">确认删除</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  // ============================================================
+// 后端 A（机器人管理）
+// 使用真实后端客户端 HttpClient 进行连接
+// ============================================================
+import { HttpClient as RobotBackend } from './http-client.js';
+
+  const STATUS_CFG = {
+    '运行中':'s-running', '待机':'s-idle', '空闲':'s-idle',
+    '充电中':'s-charging', '故障':'s-error', '告警':'s-error',
+    '可能离线':'s-offline', '离线':'s-offline',
+  };
+
+  let robots = [];
+  let pendingDeleteId = null;
+
+  function updateKpi() {
+    document.getElementById('kTotal').innerText   = robots.length;
+    document.getElementById('kOnline').innerText  = robots.filter(r => r.online !== false).length;
+    document.getElementById('kRunning').innerText = robots.filter(r => r.status === '运行中').length;
+    document.getElementById('kFault').innerText   = robots.filter(r =>
+      ['故障','告警','离线','可能离线'].includes(r.status)).length;
+  }
+
+  function renderGrid() {
+    const grid = document.getElementById('robotGrid');
+    if (!robots.length) {
+      grid.innerHTML = `<div class="empty"><div class="empty-icon">🤖</div>暂无设备，点击右上角注册机器人</div>`;
+      return;
+    }
+    grid.innerHTML = robots.map(r => {
+      const cls  = STATUS_CFG[r.status] ?? 's-idle';
+      const batt = r.battery ?? null;
+      const bc   = batt == null ? '#4a5260' : batt < 20 ? 'var(--red)' : batt < 40 ? 'var(--yellow)' : 'var(--green)';
+      return `
+        <div class="robot-card" onclick="goDetail('${r.robotId ?? r.id}')">
+          <div class="card-top">
+            <div>
+              <div class="card-id">${r.id}</div>
+              <div class="card-name">${r.name}</div>
+              <div class="card-model">${r.capabilities ?? ''}</div>
+            </div>
+            <div class="card-right">
+              <span class="status-badge ${cls}"><span class="badge-dot"></span>${r.status}</span>
+              <button class="btn-delete" title="删除"
+                onclick="event.stopPropagation();openDelModal('${r.robotId ?? r.id}','${r.id}')">✕</button>
+            </div>
+          </div>
+          <div class="card-stats">
+            <div class="card-stat">
+              <div class="cs-label">电量</div>
+              <div class="cs-value" style="color:${bc}">${batt != null ? Math.round(batt)+'%' : '--'}</div>
+              <div class="batt-bar-wrap"><div class="batt-bar" style="width:${batt??0}%;background:${bc}"></div></div>
+            </div>
+            <div class="card-stat">
+              <div class="cs-label">坐标</div>
+              <div class="cs-value" style="font-size:12px;margin-top:5px;">${r.zone ?? '--'}</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <div class="card-task">${r.currentTask ?? '无任务'}</div>
+            <div class="card-hb">心跳 ${r.heartbeatText ?? '--'}</div>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  window.goDetail = id =>
+    window.location.href = `detail.html?robotId=${encodeURIComponent(id)}`;
+
+  // 注册弹窗
+  window.openAddModal = () => {
+    ['fCode','fModel','fCaps'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('addModal').classList.add('open');
+  };
+  window.closeAddModal = () => document.getElementById('addModal').classList.remove('open');
+  window.submitAdd = async () => {
+    const code  = document.getElementById('fCode').value.trim();
+    const model = document.getElementById('fModel').value.trim();
+    const caps  = document.getElementById('fCaps').value.trim();
+    if (!code || !model || !caps) { alert('请填写所有必填项'); return; }
+    try {
+      await server.registerRobot({ robotCode: code, model, capabilities: caps });
+      closeAddModal();
+    } catch(e) { alert(`注册失败: ${e.message}`); }
+  };
+
+  // 删除弹窗
+  window.openDelModal = (robotId, robotCode) => {
+    pendingDeleteId = robotId;
+    document.getElementById('delDesc').innerText = `确定要删除机器人 ${robotCode} 吗？此操作不可撤销。`;
+    document.getElementById('delModal').classList.add('open');
+  };
+  window.closeDelModal = () => {
+    document.getElementById('delModal').classList.remove('open');
+    pendingDeleteId = null;
+  };
+  window.confirmDelete = async () => {
+    if (!pendingDeleteId) return;
+    try {
+      await server.deleteRobot(pendingDeleteId);
+      closeDelModal();
+    } catch(e) { alert(`删除失败: ${e.message}`); }
+  };
+
+  ['addModal','delModal'].forEach(id =>
+    document.getElementById(id).addEventListener('click', e => {
+      if (e.target === e.currentTarget) e.target.classList.remove('open');
+    })
+  );
+
+  const server = new RobotBackend(
+    newRobots => { robots = newRobots; renderGrid(); updateKpi(); },
+    () => {}
+  );
+  server.start();
+
+  setInterval(() => {
+    document.getElementById('clock').innerText = new Date().toLocaleString('zh-CN');
+  }, 1000);
+</script>
+</body>
+</html>

@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>机器人详情 - RCS</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;600;700&display=swap');
+    :root {
+      --bg:#0a0c0f; --bg2:#111418; --bg3:#181c22;
+      --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.13);
+      --text:#e8edf3; --text2:#7a8592; --text3:#4a5260;
+      --accent:#3b82f6; --accent2:#1d4ed8;
+      --green:#22c55e; --yellow:#eab308; --red:#ef4444;
+    }
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+    .topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--bg);}
+    .topbar-left{display:flex;align-items:center;gap:10px;}
+    .btn-back{display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:8px;font-size:13px;font-family:'Syne',sans-serif;cursor:pointer;transition:all 0.15s;text-decoration:none;}
+    .btn-back:hover{border-color:var(--border2);color:var(--text);}
+    .breadcrumb{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text3);}
+    .breadcrumb a{color:var(--text2);text-decoration:none;}
+    .breadcrumb a:hover{color:var(--text);}
+    .breadcrumb-sep{color:var(--text3);}
+    .breadcrumb-cur{color:var(--text);font-weight:600;}
+    .topbar-right{display:flex;align-items:center;gap:14px;}
+    .sys-status{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);font-family:'JetBrains Mono',monospace;}
+    .status-dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 2s infinite;}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+    .clock{font-size:12px;color:var(--text3);font-family:'JetBrains Mono',monospace;}
+    .main{display:flex;flex:1;overflow:hidden;}
+    .left-panel{width:300px;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;background:var(--bg);}
+    .left-panel::-webkit-scrollbar{width:4px;}
+    .left-panel::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+    .panel-section{padding:16px 18px;border-bottom:1px solid var(--border);}
+    .section-title{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:12px;}
+    .robot-header{display:flex;align-items:center;gap:12px;margin-bottom:10px;}
+    .robot-avatar{width:42px;height:42px;border-radius:10px;background:var(--bg3);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;}
+    .robot-title .robot-name{font-size:15px;font-weight:700;}
+    .robot-title .robot-code{font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;margin-top:2px;}
+    .status-badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;}
+    .badge-dot{width:5px;height:5px;border-radius:50%;}
+    .s-running{background:rgba(34,197,94,0.12);color:var(--green);}
+    .s-running .badge-dot{background:var(--green);animation:pulse 1.5s infinite;}
+    .s-idle{background:rgba(122,133,146,0.12);color:var(--text2);}
+    .s-idle .badge-dot{background:var(--text2);}
+    .s-charging{background:rgba(234,179,8,0.12);color:var(--yellow);}
+    .s-charging .badge-dot{background:var(--yellow);}
+    .s-error{background:rgba(239,68,68,0.12);color:var(--red);}
+    .s-error .badge-dot{background:var(--red);animation:pulse 1s infinite;}
+    .s-offline{background:rgba(74,82,96,0.2);color:var(--text3);}
+    .s-offline .badge-dot{background:var(--text3);}
+    .info-rows{display:flex;flex-direction:column;}
+    .info-row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border);}
+    .info-row:last-child{border-bottom:none;}
+    .info-label{font-size:12px;color:var(--text3);}
+    .info-value{font-size:13px;font-weight:600;font-family:'JetBrains Mono',monospace;text-align:right;}
+    .batt-row{padding:9px 0;}
+    .batt-header{display:flex;justify-content:space-between;margin-bottom:6px;}
+    .batt-label{font-size:12px;color:var(--text3);}
+    .batt-value{font-size:13px;font-weight:600;font-family:'JetBrains Mono',monospace;}
+    .batt-bar-wrap{height:5px;background:var(--bg3);border-radius:3px;}
+    .batt-bar{height:100%;border-radius:3px;transition:width 0.4s;}
+    .hb-row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;}
+    .hb-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:20px;}
+    .hb-online{background:rgba(34,197,94,0.1);color:var(--green);}
+    .hb-stale{background:rgba(234,179,8,0.1);color:var(--yellow);}
+    .control-section{padding:16px 18px;border-bottom:1px solid var(--border);flex-shrink:0;}
+    .ctrl-title{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:12px;}
+    .coord-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}
+    .coord-item{display:flex;flex-direction:column;gap:4px;}
+    .coord-label{font-size:11px;color:var(--text3);}
+    .coord-input{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:7px;font-size:13px;font-family:'JetBrains Mono',monospace;width:100%;}
+    .coord-input:focus{outline:none;border-color:var(--accent);}
+    .preset-select{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:7px;font-size:12px;font-family:'Syne',sans-serif;margin-bottom:10px;cursor:pointer;}
+    .preset-select:focus{outline:none;border-color:var(--accent);}
+    .btn-group{display:flex;flex-direction:column;gap:7px;}
+    .btn-ctrl{width:100%;padding:9px;border:none;border-radius:8px;font-size:13px;font-weight:600;font-family:'Syne',sans-serif;cursor:pointer;transition:opacity 0.15s;}
+    .btn-ctrl:active{opacity:0.75;}
+    .btn-dispatch{background:var(--accent);color:white;}
+    .btn-dispatch:hover{background:var(--accent2);}
+    .btn-stop{background:rgba(239,68,68,0.15);color:var(--red);border:1px solid rgba(239,68,68,0.25);}
+    .btn-stop:hover{background:rgba(239,68,68,0.25);}
+    .btn-resume{background:var(--bg3);color:var(--text2);border:1px solid var(--border);}
+    .btn-resume:hover{border-color:var(--border2);color:var(--text);}
+    .task-section{border-bottom:1px solid var(--border);flex-shrink:0;}
+    .task-toggle{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;cursor:pointer;user-select:none;}
+    .task-toggle-title{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;}
+    .task-chevron{font-size:10px;color:var(--text3);transition:transform 0.2s;display:inline-block;}
+    .task-chevron.open{transform:rotate(180deg);}
+    .task-content{padding:0 18px 16px;}
+    .form-group{display:flex;flex-direction:column;gap:5px;margin-bottom:12px;}
+    .form-label{font-size:12px;color:var(--text3);}
+    .form-select{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:7px;font-size:13px;font-family:'Syne',sans-serif;width:100%;cursor:pointer;}
+    .form-select:focus{outline:none;border-color:var(--accent);}
+    .priority-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;}
+    .priority-item{padding:6px;text-align:center;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;transition:all 0.15s;}
+    .priority-item[data-p="1"]{background:rgba(239,68,68,0.15);color:var(--red);}
+    .priority-item[data-p="2"]{background:rgba(249,115,22,0.15);color:#f97316;}
+    .priority-item[data-p="3"]{background:rgba(234,179,8,0.15);color:var(--yellow);}
+    .priority-item[data-p="4"]{background:rgba(34,197,94,0.15);color:var(--green);}
+    .priority-item[data-p="5"]{background:rgba(122,133,146,0.15);color:var(--text2);}
+    .priority-item.selected{border:2px solid currentColor;}
+    .form-textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:7px;font-size:12px;font-family:'JetBrains Mono',monospace;width:100%;resize:vertical;min-height:60px;}
+    .form-textarea:focus{outline:none;border-color:var(--accent);}
+    .btn-create{background:var(--green);color:white;}
+    .btn-create:hover{background:#16a34a;}
+    .feedback{margin-top:8px;padding:7px 10px;border-radius:6px;font-size:12px;display:none;}
+    .feedback.success{background:rgba(34,197,94,0.1);color:var(--green);display:block;}
+    .feedback.error{background:rgba(239,68,68,0.1);color:var(--red);display:block;}
+    .log-section{flex:1;display:flex;flex-direction:column;min-height:120px;}
+    .log-header{padding:12px 18px 8px;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;border-bottom:1px solid var(--border);flex-shrink:0;}
+    .log-body{flex:1;overflow-y:auto;padding:8px 14px;}
+    .log-body::-webkit-scrollbar{width:3px;}
+    .log-body::-webkit-scrollbar-thumb{background:var(--border2);}
+    .log-item{font-size:11px;font-family:'JetBrains Mono',monospace;padding:4px 0;border-bottom:1px solid var(--border);line-height:1.5;}
+    .log-time{color:var(--text3);margin-right:6px;}
+    .log-info{color:var(--green);}
+    .log-warn{color:var(--yellow);}
+    .log-error{color:var(--red);}
+    .right-panel{flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg);}
+    .map-header{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+    .map-title{font-size:13px;font-weight:600;color:var(--text2);}
+    .map-badge{font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;background:var(--bg3);padding:3px 9px;border-radius:20px;border:1px solid var(--border);}
+    #map-container{flex:1;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;}
+    #map{width:100%;height:100%;}
+    .map-placeholder{display:flex;flex-direction:column;align-items:center;gap:12px;color:var(--text3);}
+    .map-placeholder-icon{width:64px;height:64px;border-radius:16px;border:1px dashed var(--border2);display:flex;align-items:center;justify-content:center;font-size:28px;}
+    .map-placeholder-text{font-size:14px;}
+    .map-placeholder-sub{font-size:12px;color:var(--text3);font-family:'JetBrains Mono',monospace;}
+    #map{width:100%;height:100%;}
+    .ranking-section{border-bottom:1px solid var(--border);flex-shrink:0;max-height:200px;overflow-y:auto;}
+    .ranking-header{padding:12px 18px 8px;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;border-bottom:1px solid var(--border);flex-shrink:0;}
+    .ranking-item{display:flex;align-items:center;justify-content:space-between;padding:8px 18px;border-bottom:1px solid var(--border);font-size:11px;}
+    .ranking-item:last-child{border-bottom:none;}
+    .ranking-left{display:flex;flex-direction:column;gap:2px;}
+    .ranking-task{font-weight:600;font-family:'JetBrains Mono',monospace;}
+    .ranking-robot{color:var(--text3);}
+    .ranking-right{display:flex;flex-direction:column;align-items:flex-end;gap:2px;}
+    .ranking-urgency{font-size:12px;font-weight:700;color:var(--red);font-family:'JetBrains Mono',monospace;}
+    .ranking-priority{color:var(--text2);font-size:10px;}
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <a class="btn-back" href="index.html">← 返回</a>
+    <div class="breadcrumb">
+      <a href="index.html">机器人列表</a>
+      <span class="breadcrumb-sep">/</span>
+      <span class="breadcrumb-cur" id="breadRobotId">详情</span>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="sys-status"><div class="status-dot"></div>系统正常</div>
+    <div class="clock" id="clock">--</div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="left-panel">
+
+    <div class="panel-section">
+      <div class="section-title">设备信息</div>
+      <div class="robot-header">
+        <div class="robot-avatar">🤖</div>
+        <div class="robot-title">
+          <div class="robot-name" id="rName">--</div>
+          <div class="robot-code" id="rCode">--</div>
+        </div>
+      </div>
+      <span class="status-badge s-idle" id="rStatusBadge">
+        <span class="badge-dot"></span><span id="rStatusText">待机</span>
+      </span>
+    </div>
+
+    <div class="panel-section">
+      <div class="section-title">实时数据</div>
+      <div class="batt-row">
+        <div class="batt-header">
+          <span class="batt-label">电池电量</span>
+          <span class="batt-value" id="rBattery">--%</span>
+        </div>
+        <div class="batt-bar-wrap"><div class="batt-bar" id="rBattBar" style="width:0%"></div></div>
+      </div>
+      <div class="info-rows">
+        <div class="info-row">
+          <span class="info-label">当前坐标</span>
+          <span class="info-value" id="rPos">--</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">当前任务</span>
+          <span class="info-value" id="rTask" style="font-size:11px;max-width:140px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">--</span>
+        </div>
+      </div>
+      <div class="hb-row" style="border-top:1px solid var(--border);margin-top:4px;">
+        <span class="info-label">最后心跳</span>
+        <div style="display:flex;align-items:center;gap:7px;">
+          <span class="info-value" id="rHbTime">--</span>
+          <span class="hb-badge hb-online" id="rHbBadge" style="display:none">在线</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="control-section">
+      <div class="ctrl-title">人工干预控制</div>
+      <div class="btn-group">
+        <button class="btn-ctrl btn-stop"     onclick="handleStop()">⏹ 紧急停止</button>
+        <button class="btn-ctrl btn-resume"   onclick="handleResume()">↺ 解除锁定</button>
+      </div>
+    </div>
+
+    <div class="task-section">
+      <div class="task-toggle" onclick="toggleTask()">
+        <span class="task-toggle-title">创建任务</span>
+        <span class="task-chevron" id="taskChevron">▼</span>
+      </div>
+      <div class="task-content" id="taskContent" style="display:none;">
+        <div class="form-group">
+          <label class="form-label">指令类型</label>
+          <select class="form-select" id="cmdType" onchange="onCmdTypeChange(this.value)">
+            <option value="MOVE_TO">MOVE_TO — 移动到坐标</option>
+            <option value="STOP">STOP — 停止</option>
+            <option value="RESUME">RESUME — 恢复</option>
+            <option value="CUSTOM">CUSTOM — 自定义</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">优先级（1 最高）</label>
+          <div class="priority-grid" id="priorityGrid">
+            <div class="priority-item selected" data-p="1" onclick="setPriority(1)">P1</div>
+            <div class="priority-item" data-p="2" onclick="setPriority(2)">P2</div>
+            <div class="priority-item" data-p="3" onclick="setPriority(3)">P3</div>
+            <div class="priority-item" data-p="4" onclick="setPriority(4)">P4</div>
+            <div class="priority-item" data-p="5" onclick="setPriority(5)">P5</div>
+          </div>
+        </div>
+        <div id="paramsMoveTo">
+          <div class="coord-grid" style="margin-bottom:8px;">
+            <div class="coord-item">
+              <span class="coord-label">目标 X</span>
+              <input class="coord-input" type="number" id="tX" placeholder="0" step="0.1">
+            </div>
+            <div class="coord-item">
+              <span class="coord-label">目标 Y</span>
+              <input class="coord-input" type="number" id="tY" placeholder="0" step="0.1">
+            </div>
+          </div>
+          <div class="coord-item" style="margin-bottom:12px;">
+            <span class="coord-label">速度 (m/s)</span>
+            <input class="coord-input" type="number" id="tSpeed" placeholder="1.0" step="0.1" value="1.0">
+          </div>
+        </div>
+        <div id="paramsCustom" style="display:none;" class="form-group">
+          <label class="form-label">params (JSON)</label>
+          <textarea class="form-textarea" id="tCustom" placeholder='{"key":"value"}'></textarea>
+        </div>
+        <button class="btn-ctrl btn-create" onclick="handleCreateTask()">＋ 创建任务</button>
+        <div class="feedback" id="taskFb"></div>
+      </div>
+    </div>
+
+    <div class="ranking-section">
+      <div class="ranking-header">任务排行榜 (按紧急程度)</div>
+      <div id="rankingBody"></div>
+    </div>
+
+    <div class="log-section">
+      <div class="log-header">事件日志</div>
+      <div class="log-body" id="logBody"></div>
+    </div>
+
+  </div>
+
+  <div class="right-panel">
+    <div class="map-header">
+      <span class="map-title">实时位置地图</span>
+      <span class="map-badge" id="mapRobotId">--</span>
+    </div>
+    <!-- =====================================================
+         地图接入区域 — 地图同学在此 div 内放地图组件
+         可用全局变量：
+           window.ROBOT_ID        当前机器人 ID
+           window.ROBOT_POSITION  当前坐标 { x, y }
+         坐标更新时自动触发：
+           window.onRobotPositionUpdate = (x, y) => { ... }
+    ===================================================== -->
+    <div id="map-container">
+      <div id="map"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script type="module">
+  // ============================================================
+// 后端 A（机器人管理）
+// 使用真实后端客户端 HttpClient 进行连接
+// ============================================================
+import { HttpClient as RobotBackend } from './http-client.js';
+
+// ============================================================
+// 后端 B（任务调度）
+// 使用真实任务调度服务
+// ============================================================
+import { TaskClient } from './task-client.js';
+const taskClient = new TaskClient((type, msg) => addLog(type, msg));
+
+  const TASK_POLL_INTERVAL = 3000;
+
+  const urlParams = new URLSearchParams(location.search);
+  const robotId   = urlParams.get('robotId');
+  if (!robotId) location.href = 'index.html';
+
+  window.ROBOT_ID       = robotId;
+  window.ROBOT_POSITION = null;
+
+  document.getElementById('breadRobotId').innerText = robotId;
+  document.getElementById('mapRobotId').innerText   = robotId;
+
+  window.ROBOT_MAP = null;
+  window.ROBOT_MARKER = null;
+  window.DESTINATION_MARKER = null;  // ✅ 目的地标记
+
+  let currentTopTask = null;  // 新增：存储当前机器人的首位任务
+
+  function updateRobotMarker(x, y) {
+    if (!window.ROBOT_MAP) return;
+    const latlng = [y, x];
+    if (window.ROBOT_MARKER) {
+      window.ROBOT_MARKER.setLatLng(latlng);
+    } else {
+      window.ROBOT_MARKER = L.marker(latlng).addTo(window.ROBOT_MAP);
+    }
+    const zoom = Math.max(window.ROBOT_MAP.getZoom() || 0, 0);
+    window.ROBOT_MAP.setView(latlng, zoom);
+  }
+
+  window.onRobotPositionUpdate = (x, y) => {
+    window.ROBOT_POSITION = { x, y };
+    updateRobotMarker(x, y);
+  };
+
+  // ✅ 添加目的地标记函数
+  function addDestinationMarker(x, y) {
+    if (!window.ROBOT_MAP) return;
+    
+    // 清除旧标记
+    if (window.DESTINATION_MARKER) {
+      window.ROBOT_MAP.removeLayer(window.DESTINATION_MARKER);
+    }
+    
+    // 创建目的地图标（旗子）
+    const destinationIcon = L.icon({
+      iconUrl: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 40"%3E%3Cpath fill="%233b82f6" d="M16 2L6 8v14c0 10 10 18 10 18s10-8 10-18V8l-10-6z"/%3E%3C/svg%3E',
+      iconSize: [32, 40],
+      iconAnchor: [16, 40],
+      popupAnchor: [0, -40]
+    });
+    
+    window.DESTINATION_MARKER = L.marker([y, x], {
+      icon: destinationIcon,
+      title: '目的地',
+      draggable: true  // ✅ 启用拖拽
+    }).addTo(window.ROBOT_MAP)
+      .bindPopup(`<div style="font-size:12px;">📍 目的地<br/>X: ${x.toFixed(2)}<br/>Y: ${y.toFixed(2)}</div>`);
+    
+    // ✅ 拖动事件
+    window.DESTINATION_MARKER.on('drag', (e) => {
+      const latlng = e.target.getLatLng();
+      const newX = latlng.lng;
+      const newY = latlng.lat;
+    });
+    
+    // ✅ 拖动结束事件
+    window.DESTINATION_MARKER.on('dragend', (e) => {
+      const latlng = e.target.getLatLng();
+      const newX = latlng.lng;
+      const newY = latlng.lat;
+      
+      // 更新弹窗内容
+      window.DESTINATION_MARKER.setPopupContent(
+        `<div style="font-size:12px;">📍 目的地<br/>X: ${newX.toFixed(2)}<br/>Y: ${newY.toFixed(2)}</div>`
+      );
+      
+      addLog('info', `📍 目的地已更新：X=${newX.toFixed(2)}, Y=${newY.toFixed(2)}`);
+      console.log(`✅ 目的地已拖拽到新位置: (${newX.toFixed(2)}, ${newY.toFixed(2)})`);
+    });
+    
+    console.log(`✅ 已添加可拖拽的目的地标记: (${x.toFixed(2)}, ${y.toFixed(2)})`);
+  }
+
+  function initDetailMap() {
+    const mapEl = document.getElementById('map');
+    if (!mapEl || typeof L === 'undefined') return;
+
+    const map = L.map('map', { crs: L.CRS.Simple, minZoom: -5 });
+    window.ROBOT_MAP = map;
+
+    const yamlPath = '/maps/final.yaml';
+    let mapImagePath = '/maps/final.png';
+    let resolution = 1;
+    let origin = [0, 0];
+
+    fetch(yamlPath).then(resp => {
+      if (!resp.ok) throw new Error('yaml load failed');
+      return resp.text();
+    }).then(txt => {
+      txt.split(/\r?\n/).forEach(line => {
+        const parts = line.split(':');
+        if (parts.length < 2) return;
+        const key = parts[0].trim();
+        const value = parts.slice(1).join(':').trim();
+        if (key === 'resolution') resolution = parseFloat(value);
+        if (key === 'origin') {
+          const arr = value.replace(/[\[\]]/g, '').split(',').map(s => parseFloat(s));
+          origin = [arr[0], arr[1]];
+        }
+        if (key === 'image') {
+          mapImagePath = `/maps/${value}`;
+          if (mapImagePath.endsWith('.pgm')) {
+            mapImagePath = mapImagePath.replace(/\.pgm$/, '.png');
+          }
+        }
+      });
+
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve({ img });
+        img.onerror = () => reject(new Error('image load failed'));
+        img.src = mapImagePath;
+      }).then(({ img }) => {
+        const w = img.width;
+        const h = img.height;
+        const ox = origin[0];
+        const oy = origin[1];
+        const south = oy;
+        const west = ox;
+        const north = oy + h * resolution;
+        const east = ox + w * resolution;
+        const bounds = [[south, west], [north, east]];
+        L.imageOverlay(mapImagePath, bounds).addTo(map);
+        map.fitBounds(bounds);
+        
+        // ✅ 添加点击地图设置目的地功能
+        map.on('click', (e) => {
+          const lat = e.latlng.lat;
+          const lng = e.latlng.lng;
+          const xVal = lng.toFixed(2);
+          const yVal = lat.toFixed(2);
+          
+          document.getElementById('tX').value = xVal;
+          document.getElementById('tY').value = yVal;
+          
+          addDestinationMarker(lng, lat);
+          
+          addLog('info', `📍 点击地图设置目标：X=${xVal}, Y=${yVal}`);
+        });
+        
+        if (window.ROBOT_POSITION) {
+          updateRobotMarker(window.ROBOT_POSITION.x, window.ROBOT_POSITION.y);
+        }
+      });
+    }).catch(() => {
+      console.log("❌ 地图加载失败，使用fallback地图")
+      map.setView([31.2304, 121.4737], 17);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+      
+      // ✅ 在fallback中也添加点击地图设置目标功能
+      map.on('click', (e) => {
+        const lat = e.latlng.lat;
+        const lng = e.latlng.lng;
+        const xVal = lng.toFixed(2);
+        const yVal = lat.toFixed(2);
+        
+        document.getElementById('tX').value = xVal;
+        document.getElementById('tY').value = yVal;
+        
+        // ✅ 在地图上显示目的地标记
+        addDestinationMarker(lng, lat);
+        
+        addLog('info', `📍 点击地图设置目标：X=${xVal}, Y=${yVal}`);
+      });
+      
+      if (window.ROBOT_POSITION) {
+        updateRobotMarker(window.ROBOT_POSITION.x, window.ROBOT_POSITION.y);
+      }
+    });
+  }
+
+  initDetailMap();
+
+  const STATUS_CFG = {
+    '运行中':'s-running', '待机':'s-idle', '空闲':'s-idle',
+    '充电中':'s-charging', '故障':'s-error', '告警':'s-error',
+    '可能离线':'s-offline', '离线':'s-offline',
+  };
+
+  function addLog(type, msg) {
+    const body = document.getElementById('logBody');
+    const t    = new Date().toLocaleTimeString('zh-CN', {hour12:false});
+    const div  = document.createElement('div');
+    div.className = 'log-item';
+    div.innerHTML = `<span class="log-time">[${t}]</span><span class="log-${type}">${msg}</span>`;
+    body.prepend(div);
+    if (body.children.length > 50) body.lastChild.remove();
+  }
+
+  function updatePanel(r) {
+    document.getElementById('rName').innerText = r.name ?? '--';
+    document.getElementById('rCode').innerText = r.id   ?? '--';
+    const cls = STATUS_CFG[r.status] ?? 's-idle';
+    document.getElementById('rStatusBadge').className = `status-badge ${cls}`;
+    document.getElementById('rStatusText').innerText  = r.status ?? '--';
+
+    const batt = r.battery ?? null;
+    const bc   = batt == null ? '#4a5260' : batt < 20 ? 'var(--red)' : batt < 40 ? 'var(--yellow)' : 'var(--green)';
+    document.getElementById('rBattery').innerText      = batt != null ? Math.round(batt)+'%' : '--%';
+    document.getElementById('rBattBar').style.width    = (batt ?? 0)+'%';
+    document.getElementById('rBattBar').style.background = bc;
+    document.getElementById('rPos').innerText  = r.zone ?? '--';
+    document.getElementById('rTask').innerText = r.currentTask ?? '无任务';
+
+    // 心跳
+    document.getElementById('rHbTime').innerText = r.heartbeatText ?? '--';
+    const hbBadge = document.getElementById('rHbBadge');
+    if (r.heartbeatStale) {
+      hbBadge.style.display = 'inline-flex';
+      hbBadge.className     = 'hb-badge hb-stale';
+      hbBadge.innerText     = '可能离线';
+    } else if (r.online !== false) {
+      hbBadge.style.display = 'inline-flex';
+      hbBadge.className     = 'hb-badge hb-online';
+      hbBadge.innerText     = '在线';
+    } else {
+      hbBadge.style.display = 'none';
+    }
+
+    if (r.position) {
+      window.ROBOT_POSITION = r.position;
+      if (typeof window.onRobotPositionUpdate === 'function') {
+        window.onRobotPositionUpdate(r.position.x, r.position.y);
+      }
+    }
+  }
+
+  let currentRobotId = robotId;
+
+  window.handleStop   = () => server.stopRobot(currentRobotId);
+  window.handleResume = () => server.resumeRobot(currentRobotId);
+
+ // 创建任务
+  let selectedPriority = 1;
+  window.toggleTask = () => {
+    const c = document.getElementById('taskContent');
+    const ch = document.getElementById('taskChevron');
+    const show = c.style.display === 'none';
+    c.style.display = show ? 'block' : 'none';
+    ch.classList.toggle('open', show);
+  };
+  window.onCmdTypeChange = val => {
+    document.getElementById('paramsMoveTo').style.display = val === 'MOVE_TO' ? '' : 'none';
+    document.getElementById('paramsCustom').style.display = val === 'CUSTOM'  ? '' : 'none';
+  };
+  window.setPriority = p => {
+    selectedPriority = p;
+    document.querySelectorAll('.priority-item').forEach(el =>
+      el.classList.toggle('selected', parseInt(el.dataset.p) === p)
+    );
+  };
+  window.handleCreateTask = async () => {
+    const cmdType = document.getElementById('cmdType').value;
+    let params = {};
+    if (cmdType === 'MOVE_TO') {
+      const x     = parseFloat(document.getElementById('tX').value);
+      const y     = parseFloat(document.getElementById('tY').value);
+      const speed = parseFloat(document.getElementById('tSpeed').value) || 1.0;
+      if (isNaN(x) || isNaN(y)) { showTaskFb('error', '请填写有效的 X / Y 坐标'); return; }
+      params = { x, y, speed };
+    } else if (cmdType === 'CUSTOM') {
+      try { params = JSON.parse(document.getElementById('tCustom').value || '{}'); }
+      catch { showTaskFb('error', 'JSON 格式有误'); return; }
+    }
+    try {
+      const result = await taskClient.createTask(currentRobotId, cmdType, selectedPriority, params);
+      showTaskFb('success', `任务已创建：${cmdType} P${selectedPriority}`);
+      addLog('info', `[任务] ${cmdType} P${selectedPriority} 创建成功`);
+    } catch(e) {
+      showTaskFb('error', `创建失败: ${e.message}`);
+      addLog('error', `[任务] 创建失败: ${e.message}`);
+    }
+  };
+  function showTaskFb(type, msg) {
+    const el = document.getElementById('taskFb');
+    el.className = `feedback ${type}`;
+    el.innerText = msg;
+    setTimeout(() => el.className = 'feedback', 3500);
+  }
+
+  // 任务排行列表
+  async function updateTaskRankings() {
+    try {
+      const rankings = await taskClient.getTaskRankings();
+
+      if (!Array.isArray(rankings)) {
+        console.warn("rankings不是数组:", rankings);
+        return;
+      }
+
+      const body = document.getElementById('rankingBody');
+
+      body.innerHTML = rankings.map((task, index) => {
+        return `
+          <div class="ranking-item">
+            <div class="ranking-left">
+              <div class="ranking-task">
+                #${index + 1} ${task.commandType ?? '--'}
+              </div>
+              <div class="ranking-robot">
+                ${task.robotId ?? '--'}
+              </div>
+            </div>
+            <div class="ranking-right">
+              <div class="ranking-urgency">
+    ${Number(
+      task.urgency ??
+      task.urgencyScore ??
+      task.dynamic_priority_score ??
+      0
+    ).toFixed(2)}
+  </div>
+              <div class="ranking-priority">
+                P${task.priority ?? '-'}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+    } catch (e) {
+      console.error('获取任务排行失败:', e);
+    }
+  }
+
+  const server = new RobotBackend(
+    newRobots => {
+      const r = newRobots.find(r => r.robotId === robotId || r.id === robotId);
+      if (!r) return;
+      currentRobotId = r.robotId ?? r.id;
+      updatePanel(r);
+    },
+    addLog
+  );
+  server.start();
+
+  // 初始化任务排行
+  updateTaskRankings();
+  setInterval(updateTaskRankings, TASK_POLL_INTERVAL);
+
+  setInterval(() => {
+    document.getElementById('clock').innerText = new Date().toLocaleString('zh-CN');
+  }, 1000);
+
+  addLog('info', `加载机器人详情: ${robotId}`);
+</script>
+</body>
+</html>
